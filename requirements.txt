@@ -1,8 +1,0 @@
-
-fastapi
-uvicorn[standard]
-streamlit
-requests
-python-dotenv
-pydantic
-langdetect
