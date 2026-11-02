@@ -17,7 +17,6 @@ st.set_page_config(
 )
 
 API_URL = os.getenv("URL_DETECTION_API_URL", "http://127.0.0.1:8000/detect")
-HEALTH_URL = API_URL.replace("/detect", "/health")
 
 # ---------------------------------------------------------------------------
 # THEME — single source of truth
@@ -26,328 +25,437 @@ LIGHT = {
     "bg": "linear-gradient(135deg,#faf8ff,#eee5ff)",
     "bg_solid": "#faf8ff",
     "card": "#ffffff",
-    "panel": "#faf8ff",
+    "panel": "#f7f3ff",
     "input": "#fdfcff",
-    "text": "#24183b",
-    "muted": "#786d8c",
-    "border": "#e7ddf8",
-    "purple": "#6d28d9",
-    "purple_dark": "#4c1d95",
+    "text": "#302044",
+    "muted": "#81758d",
+    "border": "#eee6fa",
+    "purple": "#6335a5",
+    "purple_dark": "#472078",
     "track": "#ece6f7",
     "tag_bg": "#e9ddff",
-    "tag_fg": "#4c1d95",
-    "safe_bg": "#dcfce7", "safe_fg": "#166534",
+    "tag_fg": "#6335a5",
+    "safe_bg": "#e4f8ed", "safe_fg": "#247c50",
     "warn_bg": "#fef3c7", "warn_fg": "#92400e",
     "danger_bg": "#fee2e2", "danger_fg": "#b91c1c",
-    "shadow": "rgba(76,29,149,.09)",
+    "shadow": "rgba(75,42,115,.09)",
     "code_bg": "#f4f4f5",
-    "divider": "#e7ddf8",
+    "divider": "#eee6fa",
 }
 
 DARK = {
-    "bg": "linear-gradient(135deg,#0f0a1e,#1a1233)",
-    "bg_solid": "#0f0a1e",
-    "card": "#1a1230",
-    "panel": "#211838",
-    "input": "#221a3b",
-    "text": "#efeaff",
-    "muted": "#a79bc2",
-    "border": "#3a2d5c",
-    "purple": "#a78bfa",
-    "purple_dark": "#ddd6fe",
+    "bg": "linear-gradient(135deg,#20182e,#171321)",
+    "bg_solid": "#171321",
+    "card": "#261d35",
+    "panel": "#21182e",
+    "input": "#2d2340",
+    "text": "#f0e5ff",
+    "muted": "#c2b4d2",
+    "border": "#3c2c51",
+    "purple": "#bd94f5",
+    "purple_dark": "#eadcff",
     "track": "#2c2248",
-    "tag_bg": "#2e2250",
-    "tag_fg": "#ddd6fe",
+    "tag_bg": "#3d2b56",
+    "tag_fg": "#d8bdff",
     "safe_bg": "#123a22", "safe_fg": "#86efac",
     "warn_bg": "#4a3512", "warn_fg": "#fcd34d",
     "danger_bg": "#4a1620", "danger_fg": "#fca5a5",
-    "shadow": "rgba(0,0,0,.5)",
+    "shadow": "rgba(0,0,0,.30)",
     "code_bg": "#0f0a1e",
-    "divider": "#3a2d5c",
+    "divider": "#3c2c51",
 }
 
 
 def build_css(c: dict, is_dark: bool) -> str:
-    """One CSS block per theme. Streamlit re-renders st.markdown on every run,
-    so we emit ONE style tag — never stack. This forces the swap."""
     streamlit_bg = c["bg_solid"]
     return f"""
     <style id="trustcheck-theme">
+      :root {{ color-scheme: {'dark' if is_dark else 'light'}; }}
+
       /* ============================================================
-         FORCE everything to theme colors — this beats Streamlit's default
-         ============================================================ */
+         PAGE BACKGROUND AND MAIN CONTENT
+      ============================================================ */
       html, body,
       .stApp,
       [data-testid="stAppViewContainer"],
-      [data-testid="stHeader"],
-      [data-testid="stToolbar"],
-      [data-testid="stDecoration"],
-      [data-testid="stSidebar"],
-      [data-testid="stSidebar"] > div,
+      [data-testid="stMain"],
+      .main,
       .main .block-container {{
-        background: {streamlit_bg} !important;
+        background-color: {streamlit_bg} !important;
         background-image: {c['bg']} !important;
         color: {c['text']} !important;
       }}
 
-      /* All text — aggressive override */
-      .stApp, .stApp *:not(svg):not(path) {{
+      .main .block-container {{
+        max-width: 1120px;
+        padding: 2rem 3rem 3rem;
+      }}
+
+      .stApp {{ color: {c['text']} !important; }}
+      .main p, .main label, .main [data-testid="stMarkdownContainer"] {{
         color: {c['text']};
       }}
-      h1, h2, h3, h4, h5, h6 {{ color: {c['purple_dark']} !important; }}
+      .main h1, .main h2, .main h3, .main h4, .main h5, .main h6 {{
+        color: {c['purple_dark']} !important;
+        letter-spacing: -0.35px;
+      }}
       a {{ color: {c['purple']} !important; }}
 
-      /* Sidebar specific */
-      [data-testid="stSidebar"],
-      [data-testid="stSidebar"] > div {{
-        background: {c['card']} !important;
-        border-right: 1px solid {c['border']} !important;
-      }}
-
-      /* Top toolbar / hamburger menu */
       [data-testid="stHeader"],
-      [data-testid="stToolbar"] {{
-        background: {streamlit_bg} !important;
-        border-bottom: 1px solid {c['border']} !important;
+      [data-testid="stToolbar"],
+      [data-testid="stDecoration"] {{
+        background: transparent !important;
+        border: 0 !important;
       }}
       [data-testid="stHeader"] * {{ color: {c['text']} !important; }}
 
-      /* Content area padding */
-      .block-container {{ padding-top: 1.2rem; padding-bottom: 2rem; max-width: 1000px; }}
+      /* ============================================================
+         FIXED PURPLE SIDEBAR
+      ============================================================ */
+      [data-testid="stSidebar"],
+      [data-testid="stSidebar"] > div,
+      [data-testid="stSidebarContent"] {{
+        background: linear-gradient(180deg,#54288e 0%,#3d176d 100%) !important;
+        border-right: 0 !important;
+      }}
+      [data-testid="stSidebar"] {{
+        min-width: 255px !important;
+        width: 255px !important;
+      }}
+      [data-testid="stSidebar"] *:not(svg):not(path) {{
+        color: #ffffff !important;
+      }}
+      [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {{
+        color: #ffffff !important;
+      }}
+      [data-testid="stSidebar"] hr {{
+        border: 0 !important;
+        border-top: 1px solid rgba(255,255,255,.22) !important;
+      }}
+      [data-testid="stSidebar"] label {{
+        color: #f1eaff !important;
+        font-weight: 600;
+      }}
 
       /* ============================================================
-         Hero
-         ============================================================ */
-      .hero {{ text-align: center; padding: 42px 24px 26px; }}
+         SIDEBAR LANGUAGE BUTTONS (Styled dynamically via Python)
+      ============================================================ */
+      .lang-btn-container {{
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 8px;
+        margin-bottom: 16px;
+      }}
+
+      /* ============================================================
+         SIDEBAR TOGGLE (DARK MODE)
+      ============================================================ */
+      /* Styling the Streamlit toggle to match the theme */
+      [data-testid="stSidebar"] [data-testid="stToggle"] label span {{
+        color: #ffffff !important;
+      }}
+      [data-testid="stSidebar"] [data-testid="stToggle"] div[role="checkbox"] {{
+        background-color: rgba(255,255,255,0.2) !important;
+      }}
+      [data-testid="stSidebar"] [data-testid="stToggle"] div[aria-checked="true"] {{
+        background-color: #ffffff !important;
+      }}
+      [data-testid="stSidebar"] [data-testid="stToggle"] div[aria-checked="true"] > div {{
+        background-color: #6335a5 !important;
+      }}
+
+      /* ============================================================
+         HERO
+      ============================================================ */
+      .hero {{
+        position: relative;
+        overflow: hidden;
+        text-align: center;
+        padding: 48px 28px 38px;
+        margin: 4px 0 24px;
+        border: 1px solid {c['border']};
+        border-radius: 22px;
+        background: {c['bg']};
+        box-shadow: 0 12px 32px {c['shadow']};
+      }}
       .hero .tag {{
         display: inline-block;
-        padding: 8px 15px;
+        padding: 9px 16px;
         background: {c['tag_bg']};
         color: {c['tag_fg']} !important;
+        border: 1px solid {c['border']};
         border-radius: 30px;
-        font-size: 13px;
-        font-weight: 700;
-        margin-bottom: 14px;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: .7px;
+        margin-bottom: 15px;
       }}
       .hero h1 {{
-        font-size: clamp(32px, 5vw, 48px);
-        margin: 12px 0 10px;
+        font-size: clamp(34px,5vw,52px);
+        line-height: 1.15;
+        margin: 10px 0 14px;
         letter-spacing: -1.5px;
         color: {c['text']} !important;
+        font-weight: 800;
       }}
       .hero h1 span {{ color: {c['purple']} !important; }}
       .hero p {{
-        max-width: 620px;
+        max-width: 650px;
         margin: auto;
         color: {c['muted']} !important;
-        line-height: 1.7;
-        font-size: 16px;
+        line-height: 1.8;
+        font-size: 15px;
       }}
 
       /* ============================================================
-         Cards
-         ============================================================ */
+         SCANNER INTRO CARD AND FORM
+      ============================================================ */
       .card {{
-        background: {c['card']};
-        border: 1px solid {c['border']};
-        border-radius: 20px;
-        padding: 26px;
-        margin-bottom: 18px;
-        box-shadow: 0 12px 35px {c['shadow']};
+        background: {c['card']} !important;
+        border: 1px solid {c['border']} !important;
+        border-radius: 18px;
+        padding: 25px 28px;
+        margin: 22px 0 12px;
+        box-shadow: 0 8px 28px {c['shadow']};
       }}
-      .card h2 {{ margin-top: 0; font-size: 20px; color: {c['purple_dark']} !important; }}
-      .card .subtext {{ color: {c['muted']} !important; font-size: 14px; line-height: 1.6; margin-bottom: 18px; }}
+      .card h2 {{
+        margin: 0 0 9px;
+        font-size: 21px;
+        color: {c['purple_dark']} !important;
+      }}
+      .card .subtext {{
+        color: {c['muted']} !important;
+        font-size: 14px;
+        line-height: 1.7;
+        margin-bottom: 0;
+      }}
+      [data-testid="stForm"] {{
+        background: {c['card']} !important;
+        border: 1px solid {c['border']} !important;
+        border-radius: 18px !important;
+        padding: 22px 26px 24px !important;
+        margin: 0 0 24px !important;
+        box-shadow: 0 8px 28px {c['shadow']} !important;
+      }}
+      [data-testid="stTextInput"] label,
+      [data-testid="stTextInput"] label p {{
+        color: {c['text']} !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+      }}
+      div[data-baseweb="input"] > div {{
+        background: {c['input']} !important;
+        border: 1px solid {c['border']} !important;
+        border-radius: 11px !important;
+        min-height: 47px;
+        box-shadow: none !important;
+      }}
+      div[data-baseweb="input"] > div:focus-within {{
+        border-color: {c['purple']} !important;
+        box-shadow: 0 0 0 3px rgba(99,53,165,.14) !important;
+      }}
+      div[data-baseweb="input"] input {{
+        color: {c['text']} !important;
+        -webkit-text-fill-color: {c['text']} !important;
+      }}
+      div[data-baseweb="input"] input::placeholder {{
+        color: {c['muted']} !important;
+        -webkit-text-fill-color: {c['muted']} !important;
+        opacity: .85 !important;
+      }}
 
       /* ============================================================
-         Verdict pill
-         ============================================================ */
+         BUTTONS
+      ============================================================ */
+      div.stButton > button,
+      div[data-testid="stFormSubmitButton"] button,
+      button[kind="primaryFormSubmit"] {{
+        background: linear-gradient(100deg,#6335a5,#8150c4) !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+        border: 0 !important;
+        border-radius: 10px !important;
+        min-height: 46px;
+        padding: 9px 18px !important;
+        font-weight: 700 !important;
+        font-size: 14px !important;
+        box-shadow: 0 7px 18px rgba(99,53,165,.22);
+      }}
+      div.stButton > button *,
+      div[data-testid="stFormSubmitButton"] button * {{
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+      }}
+
+      /* ============================================================
+         RESULT VERDICT, GAUGE, REASONS AND ADVICE
+      ============================================================ */
       .verdict {{
-        display: inline-block; padding: 7px 14px;
-        border-radius: 30px; font-weight: 700; font-size: 14px;
+        display: inline-block;
+        padding: 8px 15px;
+        border-radius: 30px;
+        font-weight: 800;
+        font-size: 13px;
         margin-bottom: 12px;
       }}
-      .verdict.safe    {{ background: {c['safe_bg']};   color: {c['safe_fg']} !important; }}
-      .verdict.warning {{ background: {c['warn_bg']};   color: {c['warn_fg']} !important; }}
-      .verdict.danger  {{ background: {c['danger_bg']}; color: {c['danger_fg']} !important; }}
-
-      /* ============================================================
-         Reasons
-         ============================================================ */
+      .verdict.safe {{ background: {c['safe_bg']}; color: {c['safe_fg']} !important; }}
+      .verdict.warning {{ background: {c['warn_bg']}; color: {c['warn_fg']} !important; }}
+      .verdict.danger {{ background: {c['danger_bg']}; color: {c['danger_fg']} !important; }}
       .reason {{
-        padding: 11px 14px 11px 40px;
+        padding: 12px 14px 12px 40px;
         background: {c['panel']};
         border: 1px solid {c['border']};
-        border-radius: 10px;
-        margin-bottom: 8px;
-        font-size: 14px;
-        line-height: 1.55;
+        border-radius: 11px;
+        margin-bottom: 9px;
+        font-size: 13px;
+        line-height: 1.6;
         position: relative;
         color: {c['text']} !important;
-        overflow-wrap: anywhere;
       }}
-      .reason::before {{ content: "⚠"; position: absolute; left: 14px; top: 10px; color: #f59e0b; }}
-
-      /* ============================================================
-         URL card
-         ============================================================ */
+      .reason::before {{
+        content: "⚠";
+        position: absolute;
+        left: 14px;
+        top: 11px;
+        color: #f59e0b;
+      }}
       .url-card {{
-        display: flex; gap: 12px; align-items: flex-start;
-        padding: 12px 14px;
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 13px 15px;
         background: {c['panel']};
         border: 1px solid {c['border']};
         border-left-width: 4px;
-        border-radius: 10px;
+        border-radius: 11px;
         font-size: 13px;
-        margin-bottom: 8px;
+        margin-bottom: 9px;
       }}
-      .url-card.safe    {{ border-left-color: #16a34a; }}
-      .url-card.danger  {{ border-left-color: #dc2626; }}
+      .url-card.safe {{ border-left-color: #16a34a; }}
+      .url-card.danger {{ border-left-color: #dc2626; }}
       .url-card.unknown {{ border-left-color: {c['muted']}; }}
       .url-card code {{
-        font-size: 13px; word-break: break-all;
+        font-size: 13px;
         color: {c['text']} !important;
         background: transparent !important;
-        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
       }}
-      .pill {{ padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; flex-shrink: 0; }}
-      .pill.safe    {{ background: {c['safe_bg']};   color: {c['safe_fg']} !important; }}
-      .pill.danger  {{ background: {c['danger_bg']}; color: {c['danger_fg']} !important; }}
-      .pill.unknown {{ background: {c['track']};     color: {c['muted']} !important; }}
-
-      /* ============================================================
-         Advice
-         ============================================================ */
+      .pill {{
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 800;
+      }}
+      .pill.safe {{ background: {c['safe_bg']}; color: {c['safe_fg']} !important; }}
+      .pill.danger {{ background: {c['danger_bg']}; color: {c['danger_fg']} !important; }}
+      .pill.unknown {{ background: {c['track']}; color: {c['muted']} !important; }}
       .advice {{
-        padding: 14px 16px;
+        padding: 16px 18px;
         border-radius: 12px;
         background: {c['panel']};
         border: 1px solid {c['border']};
-        font-size: 14px;
-        line-height: 1.7;
+        font-size: 13px;
+        line-height: 1.8;
         color: {c['text']} !important;
       }}
-      .advice ul {{ margin: 6px 0 0; padding-left: 20px; }}
-      .advice li {{ color: {c['text']} !important; }}
+      .advice ul {{ margin: 7px 0 0; padding-left: 20px; }}
+      .advice li {{ color: {c['text']} !important; padding: 2px 0; }}
+      
+      /* PLOTLY CHART FIX - Remove Scrollbar/Scroll area */
+      [data-testid="stPlotlyChart"] {{
+        background: {c['card']} !important;
+        border: 1px solid {c['border']} !important;
+        border-radius: 16px;
+        padding: 10px;
+        overflow: hidden !important;
+      }}
 
       /* ============================================================
-         History
-         ============================================================ */
+         RECENT SCANS / HISTORY
+      ============================================================ */
       .history-item {{
-        display: grid; grid-template-columns: 54px 1fr auto;
-        gap: 12px; align-items: center;
-        padding: 10px 12px;
-        background: {c['panel']};
+        display: grid;
+        grid-template-columns: 54px minmax(0,1fr) auto;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 14px;
+        background: {c['card']};
         border: 1px solid {c['border']};
-        border-radius: 10px;
+        border-radius: 11px;
         font-size: 13px;
-        margin-bottom: 8px;
+        margin-bottom: 9px;
       }}
       .history-item .score {{
-        font-weight: 800; text-align: center;
-        padding: 6px 0; border-radius: 8px; font-size: 13px;
+        font-weight: 800;
+        text-align: center;
+        padding: 7px 0;
+        border-radius: 8px;
+        font-size: 13px;
       }}
-      .score.safe    {{ background: {c['safe_bg']};   color: {c['safe_fg']} !important; }}
-      .score.warning {{ background: {c['warn_bg']};   color: {c['warn_fg']} !important; }}
-      .score.danger  {{ background: {c['danger_bg']}; color: {c['danger_fg']} !important; }}
-      .score.unknown {{ background: {c['track']};     color: {c['muted']} !important; }}
+      .score.safe {{ background: {c['safe_bg']}; color: {c['safe_fg']} !important; }}
+      .score.warning {{ background: {c['warn_bg']}; color: {c['warn_fg']} !important; }}
+      .score.danger {{ background: {c['danger_bg']}; color: {c['danger_fg']} !important; }}
+      .score.unknown {{ background: {c['track']}; color: {c['muted']} !important; }}
       .history-item .txt {{
-        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-family: ui-monospace,SFMono-Regular,Consolas,monospace;
         font-size: 12px;
         color: {c['text']} !important;
       }}
-      .history-item .when {{ color: {c['muted']} !important; font-size: 11px; white-space: nowrap; }}
+      .history-item .when {{
+        color: {c['muted']} !important;
+        font-size: 11px;
+        white-space: nowrap;
+      }}
 
       /* ============================================================
-         Feature cards
-         ============================================================ */
+         FEATURE CARDS
+      ============================================================ */
       .feature {{
         background: {c['card']};
         border: 1px solid {c['border']};
-        padding: 20px 16px;
+        padding: 22px 17px;
         border-radius: 15px;
         text-align: center;
         height: 100%;
       }}
-      .feature .icon {{ font-size: 26px; margin-bottom: 8px; }}
-      .feature strong {{ display: block; font-size: 14px; margin-bottom: 6px; color: {c['text']} !important; }}
-      .feature p {{ font-size: 12px; color: {c['muted']} !important; line-height: 1.5; margin: 0; }}
+      .feature .icon {{ font-size: 27px; margin-bottom: 10px; }}
+      .feature strong {{
+        display: block;
+        font-size: 14px;
+        margin-bottom: 7px;
+        color: {c['text']} !important;
+      }}
+      .feature p {{
+        font-size: 12px;
+        color: {c['muted']} !important;
+        line-height: 1.6;
+        margin: 0;
+      }}
 
       /* ============================================================
-         Streamlit widgets — inputs, selects, buttons, alerts
-         ============================================================ */
-      /* Text input */
-      div[data-baseweb="input"] > div {{
-        background: {c['input']} !important;
-        border: 1px solid {c['border']} !important;
-        border-radius: 12px !important;
-      }}
-      div[data-baseweb="input"] > div:focus-within {{
-        border-color: {c['purple']} !important;
-        box-shadow: 0 0 0 3px rgba(109,40,217,.15) !important;
-      }}
-      div[data-baseweb="input"] input {{
-        color: {c['text']} !important;
-        background: transparent !important;
-      }}
-      div[data-baseweb="input"] input::placeholder {{ color: {c['muted']} !important; }}
-
-      /* Selectbox */
-      div[data-baseweb="select"] > div {{
-        background: {c['input']} !important;
-        border: 1px solid {c['border']} !important;
-        border-radius: 12px !important;
-        color: {c['text']} !important;
-      }}
-      div[data-baseweb="select"] * {{ color: {c['text']} !important; }}
-      ul[role="listbox"] {{
-        background: {c['card']} !important;
-        border: 1px solid {c['border']} !important;
-      }}
-      ul[role="listbox"] li {{ color: {c['text']} !important; }}
-      ul[role="listbox"] li:hover {{ background: {c['panel']} !important; }}
-
-      /* Toggle */
-      div[data-baseweb="toggle"] * {{ color: {c['text']} !important; }}
-      [data-testid="stToggle"] label * {{ color: {c['text']} !important; }}
-
-      /* Buttons */
-      div.stButton > button,
-      button[kind="primaryFormSubmit"] {{
-        background: linear-gradient(100deg, #6d28d9, #8b5cf6) !important;
-        color: #fff !important;
-        border: none !important;
-        border-radius: 12px !important;
-        min-height: 46px;
-        font-weight: 700 !important;
-        font-size: 15px !important;
-        box-shadow: 0 8px 18px rgba(109,40,217,.25);
-        transition: transform .15s, box-shadow .15s;
-        width: 100%;
-      }}
-      div.stButton > button:hover,
-      button[kind="primaryFormSubmit"]:hover {{
-        transform: translateY(-1px);
-        box-shadow: 0 10px 24px rgba(109,40,217,.35);
-      }}
-      div.stButton > button[kind="secondary"] {{
-        background: {c['panel']} !important;
-        color: {c['purple_dark']} !important;
-        border: 1px solid {c['border']} !important;
-      }}
-
-      /* Alerts */
+         ALERTS / WARNINGS / ERRORS
+      ============================================================ */
       [data-testid="stAlert"] {{
         background: {c['panel']} !important;
         border: 1px solid {c['border']} !important;
         color: {c['text']} !important;
         border-radius: 12px !important;
       }}
-      [data-testid="stAlert"] * {{ color: {c['text']} !important; }}
+      [data-testid="stAlert"] *,
+      [data-testid="stAlert"] p,
+      [data-testid="stAlert"] span {{
+        color: {c['text']} !important;
+        -webkit-text-fill-color: {c['text']} !important;
+      }}
+      [data-testid="stAlert"] svg {{
+        fill: {c['text']} !important;
+      }}
 
-      /* Expander */
       details, [data-testid="stExpander"] {{
-        background: {c['panel']} !important;
+        background: {c['card']} !important;
         border: 1px solid {c['border']} !important;
         border-radius: 12px !important;
       }}
@@ -355,39 +463,59 @@ def build_css(c: dict, is_dark: bool) -> str:
         color: {c['purple_dark']} !important;
       }}
       [data-testid="stExpander"] * {{ color: {c['text']} !important; }}
-
-      /* JSON viewer */
-      [data-testid="stJson"] {{ background: {c['panel']} !important; border-radius: 10px; }}
-      [data-testid="stJson"] * {{ color: {c['text']} !important; }}
-
-      /* Code */
-      pre, code, .stCode {{ background: {c['code_bg']} !important; color: {c['text']} !important; }}
-
-      /* Divider */
-      hr {{
-        border: none !important;
-        border-top: 1px solid {c['divider']} !important;
-        margin: 18px 0 !important;
+      [data-testid="stJson"] {{
+        background: {c['panel']} !important;
+        border-radius: 10px;
       }}
-
-      /* Spinner */
+      [data-testid="stJson"] * {{ color: {c['text']} !important; }}
+      pre, code, .stCode {{
+        background: {c['code_bg']} !important;
+        color: {c['text']} !important;
+      }}
+      [data-testid="stCaptionContainer"],
+      [data-testid="stCaptionContainer"] * {{
+        color: {c['muted']} !important;
+        -webkit-text-fill-color: {c['muted']} !important;
+      }}
       [data-testid="stSpinner"] * {{ color: {c['text']} !important; }}
-
-      /* Toast */
       [data-testid="stToast"] {{
         background: {c['card']} !important;
         color: {c['text']} !important;
         border: 1px solid {c['border']} !important;
       }}
-
-      /* Footer */
+      hr {{
+        border: 0 !important;
+        border-top: 1px solid {c['divider']} !important;
+        margin: 22px 0 !important;
+      }}
       .footer {{
-        text-align: center; padding: 20px 0 10px;
-        color: {c['muted']} !important; font-size: 12px; line-height: 1.6;
+        text-align: center;
+        padding: 24px 10px 12px;
+        color: {c['muted']} !important;
+        font-size: 12px;
+        line-height: 1.8;
+      }}
+
+      /* ============================================================
+         RESPONSIVE LAYOUT
+      ============================================================ */
+      @media (max-width: 900px) {{
+        .main .block-container {{ padding: 1.5rem 1.4rem 2.5rem; }}
+        .hero {{ padding: 38px 20px 30px; }}
+      }}
+      @media (max-width: 640px) {{
+        [data-testid="stSidebar"] {{ min-width: 245px !important; width: 245px !important; }}
+        .main .block-container {{ padding: 1rem 1rem 2rem; }}
+        .hero {{ padding: 30px 16px 25px; border-radius: 16px; }}
+        .hero h1 {{ font-size: 34px; }}
+        .hero p {{ font-size: 14px; }}
+        .card {{ padding: 20px; }}
+        [data-testid="stForm"] {{ padding: 18px !important; }}
+        .history-item {{ grid-template-columns: 45px minmax(0,1fr); }}
+        .history-item .when {{ grid-column: 2; }}
       }}
     </style>
     """
-
 
 # ---------------------------------------------------------------------------
 # Translations
@@ -424,8 +552,6 @@ T = {
         "feat3_desc": "One click to a clear High / Medium / Low risk verdict with actionable advice.",
         "footer_line1": "TrustCheck · Stay alert. Stay protected.",
         "footer_line2": "Automated results can be wrong. Always verify important links independently.",
-        "test_conn": "🔌 Test connection",
-        "server_online": "Server online", "server_offline": "Server offline",
     },
     "हिंदी": {
         "lang": "भाषा", "dark": "🌙 डार्क मोड",
@@ -458,8 +584,6 @@ T = {
         "feat3_desc": "एक क्लिक में स्पष्ट उच्च / मध्यम / निम्न परिणाम और सुझाव।",
         "footer_line1": "TrustCheck · सतर्क रहें। सुरक्षित रहें।",
         "footer_line2": "स्वचालित परिणाम गलत हो सकते हैं। महत्वपूर्ण लिंक स्वयं सत्यापित करें।",
-        "test_conn": "🔌 कनेक्शन जाँचें",
-        "server_online": "सर्वर ऑनलाइन", "server_offline": "सर्वर ऑफ़लाइन",
     },
     "मराठी": {
         "lang": "भाषा", "dark": "🌙 डार्क मोड",
@@ -492,8 +616,6 @@ T = {
         "feat3_desc": "एका क्लिकमध्ये स्पष्ट उच्च / मध्यम / कमी निकाल आणि सल्ला.",
         "footer_line1": "TrustCheck · सतर्क रहा. सुरक्षित रहा.",
         "footer_line2": "स्वयंचलित निकाल चुकीचे असू शकतात. महत्त्वाच्या लिंक स्वतः सत्यापित करा.",
-        "test_conn": "🔌 कनेक्शन तपासा",
-        "server_online": "सर्व्हर ऑनलाइन", "server_offline": "सर्व्हर ऑफलाइन",
     },
 }
 
@@ -506,7 +628,7 @@ st.session_state.setdefault("history", [])
 st.session_state.setdefault("last_result", None)
 
 # ---------------------------------------------------------------------------
-# Sidebar — theme toggle drives CSS regeneration via st.session_state
+# Sidebar
 # ---------------------------------------------------------------------------
 with st.sidebar:
     st.markdown(
@@ -523,27 +645,58 @@ with st.sidebar:
     )
     st.divider()
 
-    lang_names = ["English", "हिंदी", "मराठी"]
-    st.session_state.lang = st.selectbox(
-        T[st.session_state.lang]["lang"],
-        lang_names,
-        index=lang_names.index(st.session_state.lang),
-    )
     t = T[st.session_state.lang]
 
-    # Toggle — key ensures Streamlit rebuilds immediately when toggled
-    st.session_state.dark = st.toggle(t["dark"], value=st.session_state.dark, key="dark_toggle")
-
+    # --- CUSTOM LANGUAGE SWITCHER ---
+    st.markdown(f'<p style="color:#fff;font-size:14px;font-weight:700;margin-bottom:6px;">{t["lang"]}</p>', unsafe_allow_html=True)
+    
+    langs = [("English", "English"), ("हिंदी", "हिंदी"), ("मराठी", "मराठी")]
+    
+    for display_name, lang_key in langs:
+        is_active = st.session_state.lang == lang_key
+        bg_color = "#ffffff" if is_active else "rgba(255,255,255,0.1)"
+        text_color = "#472078" if is_active else "#ffffff"
+        border = "1px solid #ffffff" if is_active else "1px solid rgba(255,255,255,0.2)"
+        
+        st.markdown(
+            f"""
+            <style>
+                div[data-testid="stSidebar"] div.stButton > button[key="lang_btn_{lang_key}"] {{
+                    background: {bg_color} !important;
+                    color: {text_color} !important;
+                    border: {border} !important;
+                    font-weight: 700 !important;
+                    border-radius: 8px !important;
+                    margin-bottom: 4px !important;
+                    text-align: left !important;
+                    padding-left: 16px !important;
+                }}
+                div[data-testid="stSidebar"] div.stButton > button[key="lang_btn_{lang_key}"]:hover {{
+                    background: {'#ffffff' if is_active else 'rgba(255,255,255,0.2)'} !important;
+                }}
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+        
+        if st.button(display_name, key=f"lang_btn_{lang_key}", use_container_width=True):
+            st.session_state.lang = lang_key
+            st.rerun()
+    
+    st.markdown("<div style='margin-bottom: 12px;'></div>", unsafe_allow_html=True)
     st.divider()
-    if st.button(t["test_conn"], use_container_width=True):
-        try:
-            r = requests.get(HEALTH_URL, timeout=3)
-            st.success(t["server_online"]) if r.ok else st.error(t["server_offline"])
-        except Exception:
-            st.error(t["server_offline"])
+
+    # --- DARK MODE TOGGLE ---
+    # Using key="dark_mode_toggle" ensures Streamlit correctly tracks state changes
+    dark_mode = st.toggle(t["dark"], value=st.session_state.dark, key="dark_mode_toggle")
+    
+    # Update session state if the toggle changed
+    if dark_mode != st.session_state.dark:
+        st.session_state.dark = dark_mode
+        st.rerun()
 
 # ---------------------------------------------------------------------------
-# INJECT CSS AFTER toggle is read → swap happens on the SAME rerun
+# INJECT CSS AFTER toggle is read (so theme switches instantly)
 # ---------------------------------------------------------------------------
 theme = DARK if st.session_state.dark else LIGHT
 st.markdown(build_css(theme, st.session_state.dark), unsafe_allow_html=True)
