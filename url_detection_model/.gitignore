@@ -16,3 +16,9 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+venv/
+__pycache__/
+*.pyc
+.env
+.streamlit/secrets.toml
