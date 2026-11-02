@@ -16,7 +16,11 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-API_URL = os.getenv("URL_DETECTION_API_URL", "http://127.0.0.1:8000/detect")
+# CLOUD DEPLOYMENT FIX: Check st.secrets first, then fallback to local env or default
+if "URL_DETECTION_API_URL" in st.secrets:
+    API_URL = st.secrets["URL_DETECTION_API_URL"]
+else:
+    API_URL = os.getenv("URL_DETECTION_API_URL", "http://127.0.0.1:8000/detect")
 
 # ---------------------------------------------------------------------------
 # THEME — single source of truth
@@ -138,7 +142,7 @@ def build_css(c: dict, is_dark: bool) -> str:
       }}
 
       /* ============================================================
-         SIDEBAR LANGUAGE BUTTONS (Styled dynamically via Python)
+         SIDEBAR LANGUAGE BUTTONS
       ============================================================ */
       .lang-btn-container {{
         display: flex;
@@ -151,7 +155,6 @@ def build_css(c: dict, is_dark: bool) -> str:
       /* ============================================================
          SIDEBAR TOGGLE (DARK MODE)
       ============================================================ */
-      /* Styling the Streamlit toggle to match the theme */
       [data-testid="stSidebar"] [data-testid="stToggle"] label span {{
         color: #ffffff !important;
       }}
@@ -361,7 +364,7 @@ def build_css(c: dict, is_dark: bool) -> str:
       .advice ul {{ margin: 7px 0 0; padding-left: 20px; }}
       .advice li {{ color: {c['text']} !important; padding: 2px 0; }}
       
-      /* PLOTLY CHART FIX - Remove Scrollbar/Scroll area */
+      /* PLOTLY CHART FIX */
       [data-testid="stPlotlyChart"] {{
         background: {c['card']} !important;
         border: 1px solid {c['border']} !important;
@@ -533,7 +536,7 @@ T = {
         "analyzing": "Analyzing URL…",
         "empty": "Enter a URL first.",
         "invalid": "Enter a valid URL beginning with http:// or https://.",
-        "error_conn": "Could not connect to the API. Is FastAPI running on port 8000?",
+        "error_conn": "Could not connect to the API. Is FastAPI running?",
         "result_title": "Scan results",
         "risk_high": "High risk", "risk_medium": "Medium risk", "risk_low": "Low risk",
         "verdict_high": "High risk", "verdict_medium": "Medium risk", "verdict_safe": "Looks safe",
@@ -565,7 +568,7 @@ T = {
         "analyzing": "जाँच हो रही है…",
         "empty": "पहले URL दर्ज करें।",
         "invalid": "http:// या https:// से शुरू होने वाला सही URL दर्ज करें।",
-        "error_conn": "API से कनेक्ट नहीं हो पाया। FastAPI पोर्ट 8000 पर चल रहा है?",
+        "error_conn": "API से कनेक्ट नहीं हो पाया। FastAPI सर्वर चल रहा है?",
         "result_title": "स्कैन परिणाम",
         "risk_high": "उच्च जोखिम", "risk_medium": "मध्यम जोखिम", "risk_low": "कम जोखिम",
         "verdict_high": "उच्च जोखिम", "verdict_medium": "मध्यम जोखिम", "verdict_safe": "सुरक्षित लगता है",
@@ -597,7 +600,7 @@ T = {
         "analyzing": "तपासणी सुरू…",
         "empty": "प्रथम URL टाका.",
         "invalid": "http:// किंवा https:// ने सुरू होणारा वैध URL टाका.",
-        "error_conn": "API शी कनेक्ट होता आले नाही. FastAPI पोर्ट 8000 वर सुरू आहे का?",
+        "error_conn": "API शी कनेक्ट होता आले नाही. FastAPI सर्व्हर सुरू आहे का?",
         "result_title": "स्कॅन निकाल",
         "risk_high": "उच्च धोका", "risk_medium": "मध्यम धोका", "risk_low": "कमी धोका",
         "verdict_high": "उच्च धोका", "verdict_medium": "मध्यम धोका", "verdict_safe": "सुरक्षित वाटते",
@@ -687,16 +690,14 @@ with st.sidebar:
     st.divider()
 
     # --- DARK MODE TOGGLE ---
-    # Using key="dark_mode_toggle" ensures Streamlit correctly tracks state changes
     dark_mode = st.toggle(t["dark"], value=st.session_state.dark, key="dark_mode_toggle")
     
-    # Update session state if the toggle changed
     if dark_mode != st.session_state.dark:
         st.session_state.dark = dark_mode
         st.rerun()
 
 # ---------------------------------------------------------------------------
-# INJECT CSS AFTER toggle is read (so theme switches instantly)
+# INJECT CSS AFTER toggle is read
 # ---------------------------------------------------------------------------
 theme = DARK if st.session_state.dark else LIGHT
 st.markdown(build_css(theme, st.session_state.dark), unsafe_allow_html=True)
