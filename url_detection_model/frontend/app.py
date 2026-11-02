@@ -16,10 +16,11 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# CLOUD DEPLOYMENT FIX: Check st.secrets first, then fallback to local env or default
-if "URL_DETECTION_API_URL" in st.secrets:
+# CLOUD DEPLOYMENT FIX: Try st.secrets first, safely fallback if not found
+try:
     API_URL = st.secrets["URL_DETECTION_API_URL"]
-else:
+except (KeyError, FileNotFoundError):
+    # Fallback for local development if secrets.toml doesn't exist or key is missing
     API_URL = os.getenv("URL_DETECTION_API_URL", "http://127.0.0.1:8000/detect")
 
 # ---------------------------------------------------------------------------
@@ -744,6 +745,7 @@ if submitted:
         else:
             try:
                 with st.spinner(t["analyzing"]):
+                    # Corrected API call using the base URL
                     resp = requests.post(API_URL, json={"url": candidate}, timeout=45)
                 if not resp.ok:
                     try:
