@@ -20,34 +20,51 @@ st.set_page_config(
 # ---------------------------------------------------------------------------
 # API configuration - Streamlit Cloud and local development
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Page configuration
+# ---------------------------------------------------------------------------
+
+st.set_page_config(
+    page_title="TrustCheck | URL Threat Detection",
+    page_icon="🛡️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+
+# ---------------------------------------------------------------------------
+# API configuration - Streamlit Cloud and local development
+# ---------------------------------------------------------------------------
+
 def get_api_url() -> str:
     """Read the backend URL from Streamlit secrets or environment variables."""
+
     configured_url = ""
 
-    # Streamlit Cloud secret (Settings -> Secrets)
+    # 1. Read from Streamlit Cloud Secrets
     try:
         configured_url = st.secrets.get("URL_DETECTION_API_URL", "")
     except Exception:
-        # st.secrets may be unavailable during local development.
         configured_url = ""
 
-    # Environment-variable fallback
+    # 2. Read from environment variable
     if not configured_url:
         configured_url = os.getenv("URL_DETECTION_API_URL", "")
 
-    # Local development fallback only. Streamlit Cloud needs a public backend URL.
+    # 3. Local development fallback
     if not configured_url:
         configured_url = "http://127.0.0.1:8000"
 
     configured_url = str(configured_url).strip().rstrip("/")
+
     if not configured_url:
         raise RuntimeError("URL_DETECTION_API_URL is empty.")
 
-    # Accept either https://backend.example.com or .../detect.
-    if not configured_url.endswith("/detect"):
-        configured_url += "/detect"
+    # Remove /detect if the user has already included it
+    if configured_url.endswith("/detect"):
+        configured_url = configured_url[:-7]
 
-    return configured_url
+    return configured_url + "/detect"
 
 
 API_URL = get_api_url()
