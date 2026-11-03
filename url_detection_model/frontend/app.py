@@ -1,4 +1,5 @@
 import os
+import html
 import plotly.graph_objects as go
 from datetime import datetime
 from urllib.parse import urlparse
@@ -16,12 +17,40 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# CLOUD DEPLOYMENT FIX: Try st.secrets first, safely fallback if not found
-try:
-    API_URL = st.secrets["URL_DETECTION_API_URL"]
-except (KeyError, FileNotFoundError):
-    # Fallback for local development if secrets.toml doesn't exist or key is missing
-    API_URL = os.getenv("URL_DETECTION_API_URL", "http://127.0.0.1:8000/detect")
+# ---------------------------------------------------------------------------
+# API configuration - Streamlit Cloud and local development
+# ---------------------------------------------------------------------------
+def get_api_url() -> str:
+    """Read the backend URL from Streamlit secrets or environment variables."""
+    configured_url = ""
+
+    # Streamlit Cloud secret (Settings -> Secrets)
+    try:
+        configured_url = st.secrets.get("URL_DETECTION_API_URL", "")
+    except Exception:
+        # st.secrets may be unavailable during local development.
+        configured_url = ""
+
+    # Environment-variable fallback
+    if not configured_url:
+        configured_url = os.getenv("URL_DETECTION_API_URL", "")
+
+    # Local development fallback only. Streamlit Cloud needs a public backend URL.
+    if not configured_url:
+        configured_url = "http://127.0.0.1:8000"
+
+    configured_url = str(configured_url).strip().rstrip("/")
+    if not configured_url:
+        raise RuntimeError("URL_DETECTION_API_URL is empty.")
+
+    # Accept either https://backend.example.com or .../detect.
+    if not configured_url.endswith("/detect"):
+        configured_url += "/detect"
+
+    return configured_url
+
+
+API_URL = get_api_url()
 
 # ---------------------------------------------------------------------------
 # THEME — single source of truth
@@ -736,41 +765,91 @@ with st.form("scan_form"):
 
 if submitted:
     candidate = (url or "").strip()
+
     if not candidate:
         st.warning(t["empty"])
     else:
-        parsed = urlparse(candidate)
-        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        try:
+            parsed = urlparse(candidate)
+            valid_url = parsed.scheme in ("http", "https") and bool(parsed.hostname)
+        except ValueError:
+            valid_url = False
+
+        if not valid_url:
             st.error(t["invalid"])
         else:
             try:
                 with st.spinner(t["analyzing"]):
-                    # Corrected API call using the base URL
-                    resp = requests.post(API_URL, json={"url": candidate}, timeout=45)
-                if not resp.ok:
+                    response = requests.post(
+                        API_URL,
+                        json={"url": candidate},
+                        timeout=(10, 45),
+                    )
+
+                if not response.ok:
                     try:
-                        detail = resp.json().get("detail", "Request failed.")
-                    except Exception:
-                        detail = "Request failed."
-                    st.error(f"API error ({resp.status_code}): {detail}")
+                        error_data = response.json()
+                        if isinstance(error_data, dict):
+                            detail = error_data.get(
+                                "detail", error_data.get("message", "Request failed.")
+                            )
+                        else:
+                            detail = "Request failed."
+                    except ValueError:
+                        detail = response.text[:500] or "Request failed."
+
+                    st.error(f"API error ({response.status_code}): {detail}")
                 else:
-                    data = resp.json()
-                    risk = str(data.get("risk_level", "")).lower()
-                    if risk not in ("high", "medium", "low"):
-                        risk = "high" if data.get("threat_found") else "low"
-                    record = {
-                        "url": data.get("url") or data.get("submitted_url") or candidate,
-                        "risk": risk,
-                        "prediction": str(data.get("prediction", "unknown")).lower(),
-                        "message": data.get("message", ""),
-                        "threat_matches": data.get("threat_matches", []),
-                        "time": datetime.now().strftime("%b %d, %H:%M"),
-                    }
-                    st.session_state.last_result = record
-                    st.session_state.history.insert(0, record)
-                    st.session_state.history = st.session_state.history[:8]
-            except requests.RequestException:
-                st.error(t["error_conn"])
+                    try:
+                        data = response.json()
+                    except ValueError:
+                        data = None
+                        st.error(
+                            "The backend returned an invalid response. "
+                            "Please check your FastAPI endpoint."
+                        )
+
+                    if isinstance(data, dict):
+                        risk = str(data.get("risk_level", "")).lower().strip()
+                        if risk not in ("high", "medium", "low"):
+                            threat_found = data.get("threat_found", False)
+                            if isinstance(threat_found, str):
+                                threat_found = threat_found.lower() in ("true", "1", "yes")
+                            risk = "high" if bool(threat_found) else "low"
+
+                        threat_matches = data.get("threat_matches", [])
+                        if not isinstance(threat_matches, list):
+                            threat_matches = []
+
+                        record = {
+                            "url": str(
+                                data.get("url")
+                                or data.get("submitted_url")
+                                or candidate
+                            ),
+                            "risk": risk,
+                            "prediction": str(data.get("prediction", "unknown")).lower(),
+                            "message": str(data.get("message", "")),
+                            "threat_matches": threat_matches,
+                            "time": datetime.now().strftime("%b %d, %H:%M"),
+                        }
+
+                        st.session_state.last_result = record
+                        st.session_state.history.insert(0, record)
+                        st.session_state.history = st.session_state.history[:8]
+                    elif data is not None:
+                        st.error("Unexpected API response format.")
+
+            except requests.exceptions.Timeout:
+                st.error("The API request timed out. Please try again.")
+            except requests.exceptions.ConnectionError:
+                st.error(
+                    "Could not connect to the backend API. Check that your "
+                    "FastAPI backend is deployed and that URL_DETECTION_API_URL "
+                    "contains its public address."
+                )
+            except requests.exceptions.RequestException as error:
+                st.error(f"Request failed: {error}")
 
 # ---------------------------------------------------------------------------
 # Result helpers
@@ -849,30 +928,46 @@ if st.session_state.last_result:
     with col_info:
         css = risk_css_class(risk)
         st.markdown(f'<span class="verdict {css}">{risk_verdict(risk)}</span>', unsafe_allow_html=True)
+        safe_url = html.escape(str(r["url"]))
+        safe_message = html.escape(str(r["message"]))
         st.markdown(
             f'<p style="margin:8px 0 0;font-size:14px;line-height:1.6;">'
-            f'<strong>{t["url_prefix"]}</strong> <code style="font-size:13px;">{r["url"]}</code></p>',
+            f'<strong>{t["url_prefix"]}</strong> '
+            f'<code style="font-size:13px;">{safe_url}</code></p>',
             unsafe_allow_html=True,
         )
-        if r["message"]:
-            st.markdown(f'<p style="margin:8px 0 0;opacity:.75;font-size:14px;">{r["message"]}</p>', unsafe_allow_html=True)
+        if safe_message:
+            st.markdown(
+                f'<p style="margin:8px 0 0;opacity:.75;font-size:14px;">'
+                f'{safe_message}</p>',
+                unsafe_allow_html=True,
+            )
 
     if r["threat_matches"]:
         st.markdown(f"### ⚠ {t['reasons_title']}")
         for m in r["threat_matches"]:
+            if not isinstance(m, dict):
+                continue
             typ = m.get("threatType") or m.get("threat_type") or "Threat"
             plat = m.get("platformType") or ""
             url_ = (m.get("threat") or {}).get("url") or m.get("url") or ""
             label = f"{typ}{' (' + plat + ')' if plat else ''}{' — ' + url_ if url_ else ''}"
-            st.markdown(f'<div class="reason">{label}</div>', unsafe_allow_html=True)
+            safe_label = html.escape(str(label))
+            st.markdown(
+                f'<div class="reason">{safe_label}</div>',
+                unsafe_allow_html=True,
+            )
 
     st.markdown(f"### 🔗 {t['link_title']}")
     st.caption(t["link_hint"])
     status = "safe" if risk == "low" else ("danger" if risk == "high" else "unknown")
     pill_label = {"safe": t["pill_safe"], "danger": t["pill_danger"], "unknown": t["pill_unknown"]}[status]
+    safe_url = html.escape(str(r["url"]))
     st.markdown(
-        f'<div class="url-card {status}"><div style="flex:1"><code>{r["url"]}</code></div>'
-        f'<span class="pill {status}">{pill_label}</span></div>', unsafe_allow_html=True,
+        f'<div class="url-card {status}"><div style="flex:1">'
+        f'<code>{safe_url}</code></div>'
+        f'<span class="pill {status}">{pill_label}</span></div>',
+        unsafe_allow_html=True,
     )
 
     st.markdown(f"### 🛡️ {t['advice_title']}")
@@ -899,9 +994,12 @@ if st.session_state.history:
     score_map = {"high": 90, "medium": 55, "low": 12}
     for item in st.session_state.history:
         score = score_map.get(item["risk"], "–")
+        history_url = html.escape(str(item["url"]))
+        history_time = html.escape(str(item["time"]))
         st.markdown(
             f'<div class="history-item"><span class="score {item["risk"]}">{score}</span>'
-            f'<span class="txt">{item["url"]}</span><span class="when">{item["time"]}</span></div>',
+            f'<span class="txt">{history_url}</span>'
+            f'<span class="when">{history_time}</span></div>',
             unsafe_allow_html=True,
         )
 else:
